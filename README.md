@@ -32,18 +32,8 @@ curl -X POST http://localhost:8080/sandboxes
 
 Cage exposes a REST API that manages the lifecycle of sandboxes. Each sandbox currently maps 1:1 to a Docker container, with an in-memory (soon Postgres-backed) store tracking metadata.
 
-```
-Client
-  │
-  ▼
-REST API (chi router)
-  │
-  ▼
-SandboxManager ──► Docker Engine
-  │
-  ▼
-Store (sandbox metadata)
-```
+<img width="6438" height="3579" alt="image" src="https://github.com/user-attachments/assets/5495eb24-523e-47d3-b1a0-b6482a64ec08" />
+
 
 ## Getting Started
 
