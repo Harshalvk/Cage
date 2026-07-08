@@ -1,4 +1,5 @@
 # Cage 
+<img width="1788" height="700" alt="image" src="https://github.com/user-attachments/assets/09b33a83-b282-45c2-8551-37444489ddd7" />
 
 **Cage** is an open-source, self-hostable clone of [E2B](https://e2b.dev) — a backend service for spinning up secure, isolated sandboxes to run untrusted or AI-generated code. Built in Go.
 
