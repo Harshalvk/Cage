@@ -32,6 +32,7 @@ func main() {
 		r.Get("/", api.ListSandboxes)
 		r.Get("/{id}", api.GetSandbox)
 		r.Delete("/{id}", api.DeleteSandbox)
+		r.Post("/{id}/exec", api.ExecCommand)
 	})
 
 	log.Println("listening on :8080")
