@@ -13,6 +13,10 @@ type API struct {
 	store *Store
 }
 
+type ExecRequest struct {
+	Cmd []string `json:"cmd"`
+}
+
 func NewAPI(sm *SandboxManager, store *Store) *API {
 	return &API{sm: sm, store: store}
 }
@@ -72,4 +76,32 @@ func (a *API) ListSandboxes(w http.ResponseWriter, r *http.Request){
 	sandboxes := a.store.List()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(sandboxes)
+}
+
+func (a *API) ExecCommand(w http.ResponseWriter, r *http.Request){
+	id := chi.URLParam(r, "id")
+	sb, ok := a.store.Get(id)
+	if !ok {
+		http.Error(w, "sandbox not found", http.StatusNotFound)
+		return
+	}
+
+	var req ExecRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if len(req.Cmd) == 0 {
+		http.Error(w, "cmd is required", http.StatusBadRequest)
+		return
+	}
+
+	result, err := a.sm.ExecCommand(r.Context(), sb.ContainerID, req.Cmd)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
 }
