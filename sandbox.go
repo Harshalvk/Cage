@@ -6,8 +6,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"time"
 
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
@@ -44,8 +46,15 @@ func (sm *SandboxManager) CreateSandbox(ctx context.Context) (string, error){
 		return "", fmt.Errorf("failed to pull image: %w", err)
 	}
 
-	defer reader.Close()
-	io.Copy(io.Discard, reader) // drain pull progress output
+	defer func(){
+		if err := reader.Close(); err != nil {
+			log.Printf("failed to close reader: %v", err)
+		}
+	}()
+	
+	if _, err := io.Copy(io.Discard, reader); err != nil {
+		log.Printf("failed to drain image pull output: %v", err)
+	} // drain pull progress output
 
 	// crate container — sleep infinity keeps it alive so we can exec into it later
 	resp, err := sm.docker.ContainerCreate(ctx, &container.Config{
@@ -148,7 +157,11 @@ func (sm *SandboxManager) ReadFile(ctx context.Context, containerID, srcPath str
 	if err != nil {
 		return nil, fmt.Errorf("failed to copy file from container: %w", err)
 	}
-	defer reader.Close()
+	defer func() {
+		if err := reader.Close(); err != nil {
+			log.Printf("failed to close container copy reader: %v", err)
+		}
+  }()
 
 	tr := tar.NewReader(reader)
 
@@ -167,8 +180,8 @@ func (sm *SandboxManager) ReadFile(ctx context.Context, containerID, srcPath str
 func (sm *SandboxManager) IsRunning(ctx context.Context, containerID string) (bool, error) {
 	inspect, err := sm.docker.ContainerInspect(ctx, containerID)
 	if err != nil {
-		if client.IsErrNotFound(err){
-			return false, nil //container doesn't exists at all
+		if cerrdefs.IsNotFound(err){
+			return false, nil // container doesn't exist at all
 		}
 		return  false, err
 	}

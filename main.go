@@ -45,10 +45,12 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request){
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-	})
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+			log.Printf("failed to encode health response: %v", err)
+		}
+  })
 
 	r.Route("/sandboxes", func(r chi.Router) {
 		r.Post("/", api.CreateSandbox)

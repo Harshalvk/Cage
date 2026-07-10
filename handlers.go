@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -46,11 +47,17 @@ func (a *API) CreateSandbox(w http.ResponseWriter, r *http.Request){
 		CreatedAt: timeNow(),
 		ExpiresAt: timeNow().Add(a.sandboxTTL),
 	}
-	a.store.Save(r.Context(), sb)
+
+	if err := a.store.Save(r.Context(), sb); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(sb)
+	if err := json.NewEncoder(w).Encode(sb); err != nil {
+		log.Printf("failed to encode response: %v", err)
+	}
 }
 
 func (a *API) GetSandbox(w http.ResponseWriter, r *http.Request){
@@ -66,7 +73,9 @@ func (a *API) GetSandbox(w http.ResponseWriter, r *http.Request){
 	}
 
 	w.Header().Set("Content-Type","application/json")
-	json.NewEncoder(w).Encode(sb)
+	if err := json.NewEncoder(w).Encode(sb); err != nil {
+	  log.Printf("failed to encode response: %v", err)
+  }
 }
 
 func (a *API) DeleteSandbox(w http.ResponseWriter, r *http.Request){
@@ -87,7 +96,10 @@ func (a *API) DeleteSandbox(w http.ResponseWriter, r *http.Request){
 		return
 	}
 
-	a.store.Delete(r.Context(), id)
+	if err := a.store.Delete(r.Context(), id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -103,7 +115,9 @@ func (a *API) ListSandboxes(w http.ResponseWriter, r *http.Request){
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sandboxes)
+	if err := json.NewEncoder(w).Encode(sandboxes); err != nil {
+	  log.Printf("failed to encode response: %v", err)
+  }
 }
 
 func (a *API) ExecCommand(w http.ResponseWriter, r *http.Request){
@@ -141,7 +155,9 @@ func (a *API) ExecCommand(w http.ResponseWriter, r *http.Request){
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	if err := json.NewEncoder(w).Encode(result); err != nil {
+	  log.Printf("failed to encode response: %v", err)
+  }
 }
 
 func (a *API) WriteFile(w http.ResponseWriter, r *http.Request) {
@@ -203,7 +219,9 @@ func (a *API) ReadFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Write(content)
+	if _, err := w.Write(content); err != nil {
+		log.Printf("failed to write response: %v", err)
+	}
 }
 
 func (s *Store) ListExpired(ctx context.Context) ([]*Sandbox, error){
