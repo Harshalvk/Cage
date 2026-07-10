@@ -1,9 +1,12 @@
 package main
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
@@ -110,4 +113,53 @@ func (sm *SandboxManager) ExecCommand(ctx context.Context, containerID string, c
 		ExitCode: inspect.ExitCode,
 	}, nil
 
+}
+
+func (sm *SandboxManager) WriteFile(ctx context.Context, containerID, destPath string, content []byte) error {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+
+	hdr := &tar.Header{
+		Name: destPath,
+		Mode: 0644,
+		Size: int64(len(content)),
+		ModTime: time.Now(),
+	}
+	if err := tw.WriteHeader(hdr); err != nil {
+		return fmt.Errorf("failed to write tar header: %w", err)
+	}
+	if _, err := tw.Write(content); err != nil {
+		return fmt.Errorf("failed to write tar content: %w", err)
+	}
+	if err := tw.Close(); err != nil {
+		return fmt.Errorf("failed to close tar writer: %w", err)
+	}
+
+	err := sm.docker.CopyToContainer(ctx, containerID, "/", &buf, container.CopyToContainerOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to copy file to container: %w", err)
+	}
+
+	return nil
+}
+
+func (sm *SandboxManager) ReadFile(ctx context.Context, containerID, srcPath string)([]byte, error){
+	reader, _, err := sm.docker.CopyFromContainer(ctx, containerID, srcPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to copy file from container: %w", err)
+	}
+	defer reader.Close()
+
+	tr := tar.NewReader(reader)
+
+	_, err = tr.Next()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read tar entry: %w", err)
+	}
+
+	content, err := io.ReadAll(tr)
+	if err != nil {
+		return  nil, fmt.Errorf("failed to read file content: %w", err)
+	}
+	return content, nil
 }
