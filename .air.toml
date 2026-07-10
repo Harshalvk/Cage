@@ -1,0 +1,16 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/main.exe ."
+  bin = "tmp/main.exe"
+  delay = 1000
+  exclude_dir = ["tmp", "migrations"]
+  include_ext = ["go", "sql"]
+  exclude_regex = ["_test.go"]
+
+[log] 
+  time = true
+
+[misc]
+  clean_on_exit = true
