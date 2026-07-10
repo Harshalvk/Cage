@@ -10,3 +10,8 @@ pre-commit:
       run: golangci-lint run --new-from-rev=HEAD
     build:
       run: go build ./...
+
+commit-msg:
+  commands:
+    conventional-format:
+      run: sh scripts/commit-msg.sh {1}
