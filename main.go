@@ -29,19 +29,19 @@ func main() {
 	}
 
 	sm, err := NewSandboxManager()
-		if err != nil {
+	if err != nil {
 		log.Fatal(err)
 	}
 
-		if err := Reconcile(ctx, sm, store); err != nil {
+	if err := Reconcile(ctx, sm, store); err != nil {
 		log.Printf("reconcile failed: %v", err)
 	}
-	
+
 	reaper := NewReaper(sm, store, 5*time.Second)
 	go reaper.Start(ctx)
-	
+
 	api := NewAPI(sm, store, cfg.SandboxTTL)
-	
+
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 
@@ -50,7 +50,7 @@ func main() {
 		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
 			log.Printf("failed to encode health response: %v", err)
 		}
-  })
+	})
 
 	r.Route("/sandboxes", func(r chi.Router) {
 		r.Post("/", api.CreateSandbox)

@@ -13,16 +13,16 @@ type Config struct {
 	Port           string
 	DatabaseURL    string
 	ReaperInterval time.Duration
-	SandboxTTL 		 time.Duration
+	SandboxTTL     time.Duration
 }
 
-func LoadConfig() (*Config, error){
+func LoadConfig() (*Config, error) {
 	if err := godotenv.Load(); err != nil {
 		log.Println("no .env file found, relying on system env vars")
 	}
 
 	cfg := &Config{
-		Port: getEnv("PORT", "8080"),
+		Port:        getEnv("PORT", "8080"),
 		DatabaseURL: getEnv("DATABASE_URL", ""),
 	}
 
@@ -42,7 +42,7 @@ func LoadConfig() (*Config, error){
 	}
 	cfg.SandboxTTL = sandboxTTL
 
-	return cfg, nil	
+	return cfg, nil
 }
 
 func getEnv(key, fallback string) string {

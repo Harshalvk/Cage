@@ -21,7 +21,7 @@ func RunMigrations(databaseURL string) error {
 		}
 	}()
 
-	if err := m.Up(); err != nil && err != migrate.ErrNoChange{
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 

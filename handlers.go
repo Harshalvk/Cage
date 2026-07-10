@@ -13,8 +13,8 @@ import (
 )
 
 type API struct {
-	sm    		 *SandboxManager
-	store 		 *Store
+	sm         *SandboxManager
+	store      *Store
 	sandboxTTL time.Duration
 }
 
@@ -23,7 +23,7 @@ type ExecRequest struct {
 }
 
 type WriteFileRequest struct {
-	Path string `json:"path"`
+	Path    string `json:"path"`
 	Content string `json:"content"` // for now plain text; base64 later for binary
 }
 
@@ -31,7 +31,7 @@ func NewAPI(sm *SandboxManager, store *Store, sandboxTTL time.Duration) *API {
 	return &API{sm: sm, store: store, sandboxTTL: sandboxTTL}
 }
 
-func (a *API) CreateSandbox(w http.ResponseWriter, r *http.Request){
+func (a *API) CreateSandbox(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	containerID, err := a.sm.CreateSandbox(ctx)
@@ -41,11 +41,11 @@ func (a *API) CreateSandbox(w http.ResponseWriter, r *http.Request){
 	}
 
 	sb := &Sandbox{
-		ID: uuid.NewString(),
+		ID:          uuid.NewString(),
 		ContainerID: containerID,
-		Status: StatusRunning,
-		CreatedAt: timeNow(),
-		ExpiresAt: timeNow().Add(a.sandboxTTL),
+		Status:      StatusRunning,
+		CreatedAt:   timeNow(),
+		ExpiresAt:   timeNow().Add(a.sandboxTTL),
 	}
 
 	if err := a.store.Save(r.Context(), sb); err != nil {
@@ -60,7 +60,7 @@ func (a *API) CreateSandbox(w http.ResponseWriter, r *http.Request){
 	}
 }
 
-func (a *API) GetSandbox(w http.ResponseWriter, r *http.Request){
+func (a *API) GetSandbox(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	sb, err := a.store.Get(r.Context(), id)
 	if err != nil {
@@ -72,13 +72,13 @@ func (a *API) GetSandbox(w http.ResponseWriter, r *http.Request){
 		return
 	}
 
-	w.Header().Set("Content-Type","application/json")
+	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(sb); err != nil {
-	  log.Printf("failed to encode response: %v", err)
-  }
+		log.Printf("failed to encode response: %v", err)
+	}
 }
 
-func (a *API) DeleteSandbox(w http.ResponseWriter, r *http.Request){
+func (a *API) DeleteSandbox(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	sb, err := a.store.Get(r.Context(), id)
 	if err != nil {
@@ -103,7 +103,7 @@ func (a *API) DeleteSandbox(w http.ResponseWriter, r *http.Request){
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (a *API) ListSandboxes(w http.ResponseWriter, r *http.Request){
+func (a *API) ListSandboxes(w http.ResponseWriter, r *http.Request) {
 	sandboxes, err := a.store.List(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -116,11 +116,11 @@ func (a *API) ListSandboxes(w http.ResponseWriter, r *http.Request){
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(sandboxes); err != nil {
-	  log.Printf("failed to encode response: %v", err)
-  }
+		log.Printf("failed to encode response: %v", err)
+	}
 }
 
-func (a *API) ExecCommand(w http.ResponseWriter, r *http.Request){
+func (a *API) ExecCommand(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	sb, err := a.store.Get(r.Context(), id)
 	if err != nil {
@@ -156,8 +156,8 @@ func (a *API) ExecCommand(w http.ResponseWriter, r *http.Request){
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(result); err != nil {
-	  log.Printf("failed to encode response: %v", err)
-  }
+		log.Printf("failed to encode response: %v", err)
+	}
 }
 
 func (a *API) WriteFile(w http.ResponseWriter, r *http.Request) {
@@ -172,7 +172,6 @@ func (a *API) WriteFile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "sandbox not found", http.StatusNotFound)
 		return
 	}
-
 
 	var req WriteFileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -205,9 +204,8 @@ func (a *API) ReadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-
 	path := r.URL.Query().Get("path")
-	if path == ""{
+	if path == "" {
 		http.Error(w, "path query param is required", http.StatusBadRequest)
 		return
 	}
@@ -224,9 +222,9 @@ func (a *API) ReadFile(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Store) ListExpired(ctx context.Context) ([]*Sandbox, error){
-  rows, err := s.pool.Query(ctx,
-	  `SELECT id, container_id, status, created_at, expires_at FROM sandboxes WHERE expires_at < now() AND status = 'running'`,
+func (s *Store) ListExpired(ctx context.Context) ([]*Sandbox, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, container_id, status, created_at, expires_at FROM sandboxes WHERE expires_at < now() AND status = 'running'`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list expired sandboxes: %w", err)

@@ -13,10 +13,10 @@ type Reaper struct {
 }
 
 func NewReaper(sm *SandboxManager, store *Store, interval time.Duration) *Reaper {
-	return &Reaper{sm:sm, store: store, interval: interval}
+	return &Reaper{sm: sm, store: store, interval: interval}
 }
 
-func (r *Reaper) Start(ctx context.Context){
+func (r *Reaper) Start(ctx context.Context) {
 	ticker := time.NewTicker(r.interval)
 	defer ticker.Stop()
 
@@ -31,7 +31,7 @@ func (r *Reaper) Start(ctx context.Context){
 	}
 }
 
-func (r *Reaper) reap(ctx context.Context){
+func (r *Reaper) reap(ctx context.Context) {
 	expired, err := r.store.ListExpired(ctx)
 	if err != nil {
 		log.Printf("reaper: failed to list expired sandboxes: %v", err)

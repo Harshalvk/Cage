@@ -6,7 +6,7 @@ import (
 	"io"
 )
 
-func demuxOutput(reader io.Reader) (stdout, stderr string, err error){
+func demuxOutput(reader io.Reader) (stdout, stderr string, err error) {
 	var outBuf, errBuf bytes.Buffer
 	header := make([]byte, 8)
 
@@ -27,11 +27,11 @@ func demuxOutput(reader io.Reader) (stdout, stderr string, err error){
 			return "", "", err
 		}
 
-		switch streamType{
+		switch streamType {
 		case 1:
-				outBuf.Write(payload)
-		case 2: 
-				errBuf.Write(payload)
+			outBuf.Write(payload)
+		case 2:
+			errBuf.Write(payload)
 		}
 	}
 

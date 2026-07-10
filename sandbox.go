@@ -20,9 +20,9 @@ type SandboxManager struct {
 }
 
 type ExecResult struct {
-	Stdout string `json:"stdout"`
-	Stderr string `json:"stderr"`
-	ExitCode int	`json:"exit_code"`
+	Stdout   string `json:"stdout"`
+	Stderr   string `json:"stderr"`
+	ExitCode int    `json:"exit_code"`
 }
 
 func NewSandboxManager() (*SandboxManager, error) {
@@ -36,7 +36,7 @@ func NewSandboxManager() (*SandboxManager, error) {
 }
 
 // this function pulls the base image (if not present) and starts a container
-func (sm *SandboxManager) CreateSandbox(ctx context.Context) (string, error){
+func (sm *SandboxManager) CreateSandbox(ctx context.Context) (string, error) {
 	imageRef := "alpine:latest" // start simple, swap later
 
 	// pull image
@@ -46,12 +46,12 @@ func (sm *SandboxManager) CreateSandbox(ctx context.Context) (string, error){
 		return "", fmt.Errorf("failed to pull image: %w", err)
 	}
 
-	defer func(){
+	defer func() {
 		if err := reader.Close(); err != nil {
 			log.Printf("failed to close reader: %v", err)
 		}
 	}()
-	
+
 	if _, err := io.Copy(io.Discard, reader); err != nil {
 		log.Printf("failed to drain image pull output: %v", err)
 	} // drain pull progress output
@@ -59,8 +59,8 @@ func (sm *SandboxManager) CreateSandbox(ctx context.Context) (string, error){
 	// crate container — sleep infinity keeps it alive so we can exec into it later
 	resp, err := sm.docker.ContainerCreate(ctx, &container.Config{
 		Image: imageRef,
-		Cmd: []string{"sleep", "infinity"},
-		Tty: false,
+		Cmd:   []string{"sleep", "infinity"},
+		Tty:   false,
 	}, nil, nil, nil, "")
 
 	if err != nil {
@@ -74,7 +74,7 @@ func (sm *SandboxManager) CreateSandbox(ctx context.Context) (string, error){
 	return resp.ID, nil
 }
 
-func (sm *SandboxManager)	KillSandbox(ctx context.Context, id string) error {
+func (sm *SandboxManager) KillSandbox(ctx context.Context, id string) error {
 	timeout := 5
 
 	if err := sm.docker.ContainerStop(ctx, id, container.StopOptions{Timeout: &timeout}); err != nil {
@@ -90,7 +90,7 @@ func (sm *SandboxManager)	KillSandbox(ctx context.Context, id string) error {
 
 func (sm *SandboxManager) ExecCommand(ctx context.Context, containerID string, cmd []string) (*ExecResult, error) {
 	execConfig := container.ExecOptions{
-		Cmd: cmd,
+		Cmd:          cmd,
 		AttachStdout: true,
 		AttachStderr: true,
 	}
@@ -117,8 +117,8 @@ func (sm *SandboxManager) ExecCommand(ctx context.Context, containerID string, c
 	}
 
 	return &ExecResult{
-		Stdout: stdout,
-		Stderr: stderr,
+		Stdout:   stdout,
+		Stderr:   stderr,
 		ExitCode: inspect.ExitCode,
 	}, nil
 
@@ -129,9 +129,9 @@ func (sm *SandboxManager) WriteFile(ctx context.Context, containerID, destPath s
 	tw := tar.NewWriter(&buf)
 
 	hdr := &tar.Header{
-		Name: destPath,
-		Mode: 0644,
-		Size: int64(len(content)),
+		Name:    destPath,
+		Mode:    0644,
+		Size:    int64(len(content)),
 		ModTime: time.Now(),
 	}
 	if err := tw.WriteHeader(hdr); err != nil {
@@ -152,7 +152,7 @@ func (sm *SandboxManager) WriteFile(ctx context.Context, containerID, destPath s
 	return nil
 }
 
-func (sm *SandboxManager) ReadFile(ctx context.Context, containerID, srcPath string)([]byte, error){
+func (sm *SandboxManager) ReadFile(ctx context.Context, containerID, srcPath string) ([]byte, error) {
 	reader, _, err := sm.docker.CopyFromContainer(ctx, containerID, srcPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to copy file from container: %w", err)
@@ -161,7 +161,7 @@ func (sm *SandboxManager) ReadFile(ctx context.Context, containerID, srcPath str
 		if err := reader.Close(); err != nil {
 			log.Printf("failed to close container copy reader: %v", err)
 		}
-  }()
+	}()
 
 	tr := tar.NewReader(reader)
 
@@ -172,7 +172,7 @@ func (sm *SandboxManager) ReadFile(ctx context.Context, containerID, srcPath str
 
 	content, err := io.ReadAll(tr)
 	if err != nil {
-		return  nil, fmt.Errorf("failed to read file content: %w", err)
+		return nil, fmt.Errorf("failed to read file content: %w", err)
 	}
 	return content, nil
 }
@@ -180,10 +180,10 @@ func (sm *SandboxManager) ReadFile(ctx context.Context, containerID, srcPath str
 func (sm *SandboxManager) IsRunning(ctx context.Context, containerID string) (bool, error) {
 	inspect, err := sm.docker.ContainerInspect(ctx, containerID)
 	if err != nil {
-		if cerrdefs.IsNotFound(err){
+		if cerrdefs.IsNotFound(err) {
 			return false, nil // container doesn't exist at all
 		}
-		return  false, err
+		return false, err
 	}
 	return inspect.State.Running, nil
 }
