@@ -1,4 +1,4 @@
-# Cage 
+# Cage  [![CI](https://github.com/Harshalvk/cage/actions/workflows/ci.yml/badge.svg)](https://github.com/Harshalvk/cage/actions/workflows/ci.yml)
 <img width="1788" height="464" alt="image" src="https://github.com/user-attachments/assets/d463f5f5-9029-4a4f-8c18-2f03d5339ed4" />
 
 **Cage** is an open-source, self-hostable clone of [E2B](https://e2b.dev) — a backend service for spinning up secure, isolated sandboxes to run untrusted or AI-generated code. Built in Go.
