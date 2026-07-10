@@ -1,0 +1,1 @@
+ALTER TABLE sandboxes ADD COLUMN expires_at TIMESTAMPTZ NOT NULL DEFAULT now() + interval '1 hour';
