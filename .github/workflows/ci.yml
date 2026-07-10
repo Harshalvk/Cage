@@ -59,14 +59,14 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version: "1.25"  
           cache: true
 
       - name: Install migrate CLI
         run: go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 
       - name: Run migrations
-        run: migrate -database "postgres://cage:cage@localhost:5432/cage?sslmode=disable" -hpat migrations up
+        run: migrate -database "postgres://cage:cage@localhost:5432/cage?sslmode=disable" -path migrations up
 
       - name: Run tests
         run: go test ./... -v
