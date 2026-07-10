@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -10,12 +11,18 @@ import (
 )
 
 func main() {
-	sm, err := NewSandboxManager()
+	ctx := context.Background()
+	connString := "postgres://cage:cage@localhost:5432/cage"
+	store, err := NewStore(ctx, connString)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	store := NewStore()
+	
+	sm, err := NewSandboxManager()
+		if err != nil {
+		log.Fatal(err)
+	}
+	
 	api := NewAPI(sm, store)
 	
 	r := chi.NewRouter()
