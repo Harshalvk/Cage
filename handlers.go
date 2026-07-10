@@ -41,7 +41,7 @@ func (a *API) CreateSandbox(w http.ResponseWriter, r *http.Request){
 		Status: StatusRunning,
 		CreatedAt: timeNow(),
 	}
-	a.store.Save(sb)
+	a.store.Save(r.Context(), sb)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -50,8 +50,12 @@ func (a *API) CreateSandbox(w http.ResponseWriter, r *http.Request){
 
 func (a *API) GetSandbox(w http.ResponseWriter, r *http.Request){
 	id := chi.URLParam(r, "id")
-	sb, ok := a.store.Get(id)
-	if !ok {
+	sb, err := a.store.Get(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if sb == nil {
 		http.Error(w, "sandbox not found", http.StatusNotFound)
 		return
 	}
@@ -62,8 +66,13 @@ func (a *API) GetSandbox(w http.ResponseWriter, r *http.Request){
 
 func (a *API) DeleteSandbox(w http.ResponseWriter, r *http.Request){
 	id := chi.URLParam(r, "id")
-	sb, ok := a.store.Get(id)
-	if !ok {
+	sb, err := a.store.Get(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if sb != nil {
 		http.Error(w, "sandbox not found", http.StatusNotFound)
 		return
 	}
@@ -73,21 +82,40 @@ func (a *API) DeleteSandbox(w http.ResponseWriter, r *http.Request){
 		return
 	}
 
-	a.store.Delete(id)
+	a.store.Delete(r.Context(), id)
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *API) ListSandboxes(w http.ResponseWriter, r *http.Request){
-	sandboxes := a.store.List()
+	sandboxes, err := a.store.List(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if sandboxes == nil {
+		http.Error(w, "sandboxes not found", http.StatusNotFound)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(sandboxes)
 }
 
 func (a *API) ExecCommand(w http.ResponseWriter, r *http.Request){
 	id := chi.URLParam(r, "id")
-	sb, ok := a.store.Get(id)
-	if !ok {
+	sb, err := a.store.Get(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if sb != nil {
 		http.Error(w, "sandbox not found", http.StatusNotFound)
+		return
+	}
+
+	if err := a.sm.KillSandbox(r.Context(), sb.ContainerID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -113,11 +141,17 @@ func (a *API) ExecCommand(w http.ResponseWriter, r *http.Request){
 
 func (a *API) WriteFile(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	sb, ok := a.store.Get(id)
-	if !ok {
+	sb, err := a.store.Get(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if sb != nil {
 		http.Error(w, "sandbox not found", http.StatusNotFound)
 		return
 	}
+
 
 	var req WriteFileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -139,11 +173,17 @@ func (a *API) WriteFile(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) ReadFile(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	sb, ok := a.store.Get(id)
-	if !ok {
+	sb, err := a.store.Get(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if sb != nil {
 		http.Error(w, "sandbox not found", http.StatusNotFound)
 		return
 	}
+
 
 	path := r.URL.Query().Get("path")
 	if path == ""{
