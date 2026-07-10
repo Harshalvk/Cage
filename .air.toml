@@ -2,7 +2,7 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-  cmd = "go build -o ./tmp/main.exe ."
+  cmd = "go build -o ./tmp/main.exe ./cmd/cage"
   bin = "tmp/main.exe"
   delay = 1000
   exclude_dir = ["tmp", "migrations"]
