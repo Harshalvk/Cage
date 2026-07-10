@@ -98,3 +98,30 @@ func (s *Store) List(ctx context.Context) ([]*Sandbox, error) {
 
 	return sandboxes, nil
 }
+
+func (s *Store) CreateAPIKey(ctx context.Context, name, keyHash string) error {
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO api_keys (id, key_hash, name) VALUES (gen_random_uuid(), $1, $2)`,
+		keyHash, name,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create api key: %w", err)
+	}
+
+	return nil
+}
+
+// this func checks if a hashed key exists and hasn't been revoked
+func (s *Store) ValidateAPIKey(ctx context.Context, keyHash string) (bool, error) {
+	var exists bool
+	err := s.pool.QueryRow(ctx,
+		`SELECT EXISTS(
+			SELECT 1 FROM api_keys WHERE key_hash = $1 AND revoked_at IS NULL
+		)`,
+		keyHash,
+	).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to validate api key: %w", err)
+	}
+	return exists, nil
+}
