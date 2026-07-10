@@ -1,0 +1,21 @@
+services:
+  cage-postgres:
+    image: postgres:17
+    container_name: cage-postgres
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_USER=cage
+      - POSTGRES_PASSWORD=cage
+      - POSTGRES_DB=cage
+    volumes:
+      - cage-postgres:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cage -d cage"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  cage-postgres:
