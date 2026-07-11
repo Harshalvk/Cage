@@ -1,0 +1,1 @@
+ALTER TABLE sandboxes DROP COLUMN template_slug;

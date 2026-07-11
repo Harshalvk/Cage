@@ -1,0 +1,1 @@
+ALTER TABLE sandboxes ADD COLUMN template_slug TEXT NOT NULL DEFAULT 'base';
