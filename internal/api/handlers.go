@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -26,6 +27,9 @@ type WriteFileRequest struct {
 	Path    string `json:"path"`
 	Content string `json:"content"` // for now plain text; base64 later for binary
 }
+type CreateSandboxRequest struct {
+	Template string `json:"template"`
+}
 
 func NewAPI(sm *sandbox.SandboxManager, store *store.Store, sandboxTTL time.Duration) *API {
 	return &API{sm: sm, store: store, sandboxTTL: sandboxTTL}
@@ -34,18 +38,35 @@ func NewAPI(sm *sandbox.SandboxManager, store *store.Store, sandboxTTL time.Dura
 func (a *API) CreateSandbox(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	containerID, err := a.sm.CreateSandbox(ctx)
+	var req CreateSandboxRequest
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	if req.Template == "" {
+		req.Template = "base"
+	}
+
+	tmpl, err := a.store.GetTemplateBySlug(ctx, req.Template)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if tmpl == nil {
+		http.Error(w, fmt.Sprintf("unknown templates: %s", req.Template), http.StatusBadRequest)
+		return
+	}
+
+	containerID, err := a.sm.CreateSandbox(ctx, tmpl.Image)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	sb := &store.Sandbox{
-		ID:          uuid.NewString(),
-		ContainerID: containerID,
-		Status:      store.StatusRunning,
-		CreatedAt:   timeNow(),
-		ExpiresAt:   timeNow().Add(a.sandboxTTL),
+		ID:           uuid.NewString(),
+		ContainerID:  containerID,
+		Status:       store.StatusRunning,
+		CreatedAt:    timeNow(),
+		ExpiresAt:    timeNow().Add(a.sandboxTTL),
+		TemplateSlug: tmpl.Slug,
 	}
 
 	if err := a.store.Save(r.Context(), sb); err != nil {
@@ -219,5 +240,17 @@ func (a *API) ReadFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	if _, err := w.Write(content); err != nil {
 		log.Printf("failed to write response: %v", err)
+	}
+}
+
+func (a *API) ListTemplates(w http.ResponseWriter, r *http.Request) {
+	templates, err := a.store.ListTemplate(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(templates); err != nil {
+		log.Printf("failed to encode response: %v", err)
 	}
 }
