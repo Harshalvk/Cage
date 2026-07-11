@@ -149,13 +149,8 @@ func (a *API) ExecCommand(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if sb != nil {
+	if sb == nil {
 		http.Error(w, "sandbox not found", http.StatusNotFound)
-		return
-	}
-
-	if err := a.sm.KillSandbox(r.Context(), sb.ContainerID); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
