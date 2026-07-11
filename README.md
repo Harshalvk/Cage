@@ -26,7 +26,7 @@ curl -X POST http://localhost:8080/sandboxes
 - [x] Persistent storage (Postgres) for sandbox metadata
 - [x] Idle/expiry-based sandbox cleanup
 - [x] API key authentication
-- [ ] Custom sandbox templates
+- [x] Custom sandbox templates
 - [ ] Pause/resume support
 - [ ] Firecracker microVM backend (long-term goal)
 
