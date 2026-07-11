@@ -59,6 +59,8 @@ func main() {
 		}
 	})
 
+	r.Get("/templates", api.ListTemplates)
+
 	r.Route("/sandboxes", func(r chi.Router) {
 		r.Use(api.AuthMiddleware(store))
 		r.Post("/", api.CreateSandbox)
