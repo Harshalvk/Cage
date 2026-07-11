@@ -1,4 +1,4 @@
-.PHONY: dev build run lint fmt migrate-up migrate-down migrate-create test setup clean
+.PHONY: dev build run lint fmt migrate-up migrate-down migrate-create test setup clean genkey
 
 include .env
 export
