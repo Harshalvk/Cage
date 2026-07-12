@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/harshalvk/cage/internal/testutil"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -48,7 +49,7 @@ func (s *StoreTestSuite) SetupSuite() {
 	require.NoError(s.T(), err)
 
 	// run migrations against this fetch throwaway db
-	err = runTestMigrations(connStr)
+	err = testutil.RunMigrations(connStr)
 	require.NoError(s.T(), err)
 
 	st, err := NewStore(ctx, connStr)
