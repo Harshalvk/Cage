@@ -88,14 +88,14 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 
 func (s *Store) List(ctx context.Context) ([]*Sandbox, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, container_id, status, created_at, expires_at, template_slug FROM ORDER BY created_at DESC`,
+		`SELECT id, container_id, status, created_at, expires_at, template_slug FROM sandboxes ORDER BY created_at DESC`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list sandboxes: %w", err)
 	}
 	defer rows.Close()
 
-	var sandboxes []*Sandbox
+	sandboxes := []*Sandbox{} // also fixes the null-vs-[] issue from earlier
 	for rows.Next() {
 		var sb Sandbox
 		if err := rows.Scan(&sb.ID, &sb.ContainerID, &sb.Status, &sb.CreatedAt, &sb.ExpiresAt, &sb.TemplateSlug); err != nil {
