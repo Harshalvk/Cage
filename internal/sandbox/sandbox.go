@@ -16,7 +16,7 @@ import (
 )
 
 type SandboxManager struct {
-	docker *client.Client
+	docker DockerClient
 }
 
 type ExecResult struct {
@@ -33,6 +33,10 @@ func NewSandboxManager() (*SandboxManager, error) {
 	}
 
 	return &SandboxManager{docker: cli}, nil
+}
+
+func NewSandboxManagerWithClient(cli DockerClient) *SandboxManager {
+	return &SandboxManager{docker: cli}
 }
 
 // this function pulls the base image (if not present) and starts a container
@@ -133,7 +137,7 @@ func (sm *SandboxManager) WriteFile(ctx context.Context, containerID, destPath s
 		ModTime: time.Now(),
 	}
 	if err := tw.WriteHeader(hdr); err != nil {
-		return fmt.Errorf("failed to write tar header: %w", err)
+		return fmt.Errorf("failed to `write tar header: %w", err)
 	}
 	if _, err := tw.Write(content); err != nil {
 		return fmt.Errorf("failed to write tar content: %w", err)
