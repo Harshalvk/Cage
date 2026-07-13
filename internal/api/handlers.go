@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -160,6 +161,11 @@ func (a *API) ExecCommand(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if sb.Status != store.StatusRunning {
+		http.Error(w, fmt.Sprintf("sandbox is %q, not running", sb.Status), http.StatusConflict)
+		return
+	}
+
 	var req ExecRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -190,8 +196,13 @@ func (a *API) WriteFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if sb != nil {
+	if sb == nil {
 		http.Error(w, "sandbox not found", http.StatusNotFound)
+		return
+	}
+
+	if sb.Status != store.StatusRunning {
+		http.Error(w, fmt.Sprintf("sandbox is %q, not running", sb.Status), http.StatusConflict)
 		return
 	}
 
@@ -226,6 +237,11 @@ func (a *API) ReadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if sb.Status != store.StatusRunning {
+		http.Error(w, fmt.Sprintf("sandbox is %q, not running", sb.Status), http.StatusConflict)
+		return
+	}
+
 	path := r.URL.Query().Get("path")
 	if path == "" {
 		http.Error(w, "path query param is required", http.StatusBadRequest)
@@ -252,6 +268,95 @@ func (a *API) ListTemplates(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(templates); err != nil {
+		log.Printf("failed to encode response: %v", err)
+	}
+}
+
+func (a *API) PauseSandbox(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	sb, err := a.store.Get(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if sb == nil {
+		http.Error(w, "sandbox not found", http.StatusNotFound)
+		return
+	}
+	if sb.Status != store.StatusRunning {
+		http.Error(w, fmt.Sprintf("cannot pause sandbox in status %q", sb.Status), http.StatusConflict)
+		return
+	}
+
+	imageID, err := a.sm.PauseSandbox(r.Context(), sb.ContainerID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	sb.Status = store.StatusPaused
+	sb.PausedImageID = &imageID
+	sb.ContainerID = "" // this is consider as no live contaier while paused
+
+	if err := a.store.Save(r.Context(), sb); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(sb); err != nil {
+		log.Printf("failed to encode response: %v", err)
+	}
+}
+
+func (a *API) ResumeSandbox(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	sb, err := a.store.Get(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if sb == nil {
+		http.Error(w, "sandbox not found", http.StatusNotFound)
+		return
+	}
+	if sb.Status != store.StatusPaused {
+		http.Error(w, fmt.Sprintf("cannot resume sandbox in status %q", sb.Status), http.StatusConflict)
+		return
+	}
+	if sb.PausedImageID == nil {
+		http.Error(w, "sandbox is paused but has no associated image - inconsisten state", http.StatusInternalServerError)
+		return
+	}
+
+	oldImageID := *sb.PausedImageID
+
+	newContainerID, err := a.sm.ResumeSandbox(r.Context(), oldImageID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	sb.ContainerID = newContainerID
+	sb.Status = store.StatusRunning
+	sb.PausedImageID = nil
+	sb.ExpiresAt = timeNow().Add(a.sandboxTTL)
+
+	if err := a.store.Save(r.Context(), sb); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// clean-up the non-unneeded snapshot image in the background
+	// dont block the response on it, and a failure there shouldn't fail the resume
+	go func() {
+		if err := a.sm.RemoveImage(context.Background(), oldImageID); err != nil {
+			log.Printf("failed to clean up paused image %s: %v", oldImageID, err)
+		}
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(sb); err != nil {
 		log.Printf("failed to encode response: %v", err)
 	}
 }
