@@ -111,14 +111,15 @@ func TestResumeSandbox_WrongStatus(t *testing.T) {
 	st := setupTestStore(t)
 	ctx := context.Background()
 
-	sb := &store.Sandbox{ID: "sb-running-already", ContainerID: "c-1", Status: store.StatusRunning}
+	id := uuid.NewString()
+	sb := &store.Sandbox{ID: id, ContainerID: "c-1", Status: store.StatusRunning}
 	require.NoError(t, st.Save(ctx, sb))
 
 	a := NewAPI(nil, st, 0)
 	r := chi.NewRouter()
 	r.Post("/sandboxes/{id}/resume", a.ResumeSandbox)
 
-	req := httptest.NewRequest(http.MethodPost, "/sandboxes/sb-running-already/resume", nil)
+	req := httptest.NewRequest(http.MethodPost, "/sandboxes/"+id+"/resume", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
