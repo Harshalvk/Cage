@@ -1,0 +1,36 @@
+# CODEOWNERS
+# This file defines who is automatically requested for review
+# when a pull request touches specific paths in this repo.
+#
+# Syntax: <path-pattern>  <owner(s)>
+# Rules are matched top to bottom; the LAST matching rule wins,
+# so keep general/default rules at the top and more specific
+# overrides further down.
+#
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything in the repo
+*                           @harshalvk
+
+# Core application code
+/cmd/                      @harshalvk
+/internal/                 @harshalvk
+
+# Database schema & migrations — worth extra scrutiny since these are
+# hard to reverse once applied to a real database
+/migrations/                @harshalvk
+
+# CI/CD and tooling config
+/.github/                   @harshalvk
+/Makefile                   @harshalvk
+/lefthook.yml                @harshalvk
+/.golangci.yml                @harshalvk
+/.air.toml                     @harshalvk
+
+# Docker & deployment
+/Dockerfile                  @harshalvk
+/docker-compose.yml           @harshalvk
+/.dockerignore                  @harshalvk
+
+# Documentation
+/README.md                     @harshalvk
