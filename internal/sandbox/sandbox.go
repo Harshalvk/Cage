@@ -189,3 +189,50 @@ func (sm *SandboxManager) IsRunning(ctx context.Context, containerID string) (bo
 	}
 	return inspect.State.Running, nil
 }
+
+// pause_sandbox snapshots the container's filesystem into a new docker image,
+// and then stops and removes the container - freeing its memory entirely
+// returns the id of the commited image, which resume_sandobx needs lateer
+func (sm *SandboxManager) PauseSandbox(ctx context.Context, containerID string) (imageID string, err error) {
+	commitResp, err := sm.docker.ContainerCommit(ctx, containerID, container.CommitOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to commit container: %w", err)
+	}
+
+	timeout := 5
+	if err := sm.docker.ContainerStop(ctx, containerID, container.StopOptions{Timeout: &timeout}); err != nil {
+		return "", fmt.Errorf("failed to stop container: %w", err)
+	}
+	if err := sm.docker.ContainerRemove(ctx, containerID, container.RemoveOptions{Force: true}); err != nil {
+		return "", fmt.Errorf("failed to remove container: %w", err)
+	}
+
+	return commitResp.ID, nil
+}
+
+// resume_sandbox creates and start a fresh container from a previously
+// commited image, restoring the sandbox's filesystem state
+func (sm *SandboxManager) ResumeSandbox(ctx context.Context, imageID string) (contaierID string, err error) {
+	resp, err := sm.docker.ContainerCreate(ctx, &container.Config{
+		Image: imageID,
+		Cmd:   []string{"sleep", "infinity"},
+	}, nil, nil, nil, "")
+	if err != nil {
+		return "", fmt.Errorf("failed to create container from paused image: %w", err)
+	}
+
+	if err := sm.docker.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+		return "", fmt.Errorf("failed to start resumed container: %w", err)
+	}
+
+	return resp.ID, nil
+}
+
+// remove_image cleans up a commited pause-image once it's no longer need
+// i.e after a successful resume
+func (sm *SandboxManager) RemoveImage(ctx context.Context, imageID string) error {
+	if _, err := sm.docker.ImageRemove(ctx, imageID, image.RemoveOptions{Force: true}); err != nil {
+		return fmt.Errorf("failed to remove image: %w", err)
+	}
+	return nil
+}
