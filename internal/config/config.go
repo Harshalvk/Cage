@@ -12,6 +12,7 @@ import (
 type Config struct {
 	Port           string
 	DatabaseURL    string
+	RedisURL       string
 	ReaperInterval time.Duration
 	SandboxTTL     time.Duration
 }
@@ -24,6 +25,7 @@ func LoadConfig() (*Config, error) {
 	cfg := &Config{
 		Port:        getEnv("PORT", "8080"),
 		DatabaseURL: getEnv("DATABASE_URL", ""),
+		RedisURL:    getEnv("REDIS_URL", "redis://localhost:6379"),
 	}
 
 	if cfg.DatabaseURL == "" {
