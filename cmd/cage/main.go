@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/harshalvk/cage/internal/api"
+	"github.com/harshalvk/cage/internal/cache"
 	"github.com/harshalvk/cage/internal/config"
 	"github.com/harshalvk/cage/internal/db"
 	"github.com/harshalvk/cage/internal/reaper"
@@ -40,6 +41,16 @@ func main() {
 		log.Fatal(err)
 	}
 
+	c, err := cache.New(cfg.RedisURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		if err := c.Close(); err != nil {
+			log.Printf("failed to close container: %v", err)
+		}
+	}()
+
 	if err := reconcile.Reconcile(ctx, sm, store); err != nil {
 		log.Printf("reconcile failed: %v", err)
 	}
@@ -62,7 +73,7 @@ func main() {
 	r.Get("/templates", api.ListTemplates)
 
 	r.Route("/sandboxes", func(r chi.Router) {
-		r.Use(api.AuthMiddleware(store))
+		r.Use(api.AuthMiddleware(store, c))
 		r.Post("/", api.CreateSandbox)
 		r.Get("/", api.ListSandboxes)
 		r.Get("/{id}", api.GetSandbox)
