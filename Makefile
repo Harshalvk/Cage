@@ -36,7 +36,7 @@ test-short:
 
 test-converge:
 	go test ./... -coverprofile=coverage.out
-	go toll cover -html=coverage.out -o coverage.html
+	go tool cover -html=coverage.out -o coverage.html
 
 setup:
 	lefthook install
