@@ -1,0 +1,412 @@
+openapi: 3.0.3
+info:
+  title: Cage API
+  description: >
+    Cage is a self-hostable clone of E2B — a backend service for spinning up
+    secure, isolated Docker-backed sandboxes to run untrusted or AI-generated code.
+  version: "1.0.0"
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: health
+    description: Service health check
+  - name: templates
+    description: Discover available sandbox base images
+  - name: sandboxes
+    description: Sandbox lifecycle management
+  - name: exec
+    description: Run commands inside a sandbox
+  - name: files
+    description: Read/write files inside a sandbox
+  - name: pause-resume
+    description: Freeze and restore sandbox state
+
+security:
+  - ApiKeyAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /templates:
+    get:
+      tags: [templates]
+      summary: List available sandbox templates
+      security: []
+      responses:
+        "200":
+          description: List of templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Template"
+
+  /sandboxes:
+    post:
+      tags: [sandboxes]
+      summary: Create a new sandbox
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                template:
+                  type: string
+                  description: Template slug to base the sandbox on. Defaults to "base".
+                  example: python-3.12
+      responses:
+        "201":
+          description: Sandbox created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sandbox"
+        "400":
+          description: Unknown template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      tags: [sandboxes]
+      summary: List all sandboxes
+      responses:
+        "200":
+          description: List of sandboxes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Sandbox"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /sandboxes/{id}:
+    parameters:
+      - $ref: "#/components/parameters/SandboxId"
+    get:
+      tags: [sandboxes]
+      summary: Get sandbox details
+      responses:
+        "200":
+          description: Sandbox details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sandbox"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [sandboxes]
+      summary: Kill and remove a sandbox
+      responses:
+        "204":
+          description: Sandbox deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /sandboxes/{id}/exec:
+    parameters:
+      - $ref: "#/components/parameters/SandboxId"
+    post:
+      tags: [exec]
+      summary: Run a command inside a sandbox
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cmd]
+              properties:
+                cmd:
+                  type: array
+                  items:
+                    type: string
+                  example: ["echo", "hello from cage"]
+      responses:
+        "200":
+          description: Command output
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecResult"
+        "400":
+          description: Missing or invalid cmd
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Sandbox is not in a running state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /sandboxes/{id}/files:
+    parameters:
+      - $ref: "#/components/parameters/SandboxId"
+    post:
+      tags: [files]
+      summary: Write a file into a sandbox
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path, content]
+              properties:
+                path:
+                  type: string
+                  description: Absolute path inside the sandbox
+                  example: /tmp/hello.txt
+                content:
+                  type: string
+                  description: Plain-text file content (UTF-8 only; binary files are not yet supported)
+                  example: hello from cage
+      responses:
+        "204":
+          description: File written
+        "400":
+          description: Missing path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Sandbox is not in a running state
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      tags: [files]
+      summary: Read a file from a sandbox
+      parameters:
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+          example: /tmp/hello.txt
+      responses:
+        "200":
+          description: Raw file content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Missing path query param
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Sandbox is not in a running state
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /sandboxes/{id}/pause:
+    parameters:
+      - $ref: "#/components/parameters/SandboxId"
+    post:
+      tags: [pause-resume]
+      summary: Pause a running sandbox
+      description: >
+        Commits the sandbox's filesystem to an image, then stops and removes
+        the underlying container — freeing its memory while preserving state.
+      responses:
+        "200":
+          description: Sandbox paused
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sandbox"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Sandbox is not in a running state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /sandboxes/{id}/resume:
+    parameters:
+      - $ref: "#/components/parameters/SandboxId"
+    post:
+      tags: [pause-resume]
+      summary: Resume a paused sandbox
+      description: >
+        Creates and starts a fresh container from the sandbox's paused image,
+        restoring its filesystem state. Extends the sandbox's expiry.
+      responses:
+        "200":
+          description: Sandbox resumed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sandbox"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Sandbox is not in a paused state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: http
+      scheme: bearer
+      description: >
+        API key generated via `make genkey`. Pass as `Authorization: Bearer <key>`.
+        Not required for `/health` or `/templates`.
+
+  parameters:
+    SandboxId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Sandbox ID
+
+  schemas:
+    Sandbox:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [running, paused, stopped]
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        template_slug:
+          type: string
+          example: python-3.12
+      required:
+        - id
+        - status
+        - created_at
+        - expires_at
+
+    Template:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+          example: node-20
+        image:
+          type: string
+          example: node:20-slim
+        description:
+          type: string
+          example: Node.js 20 with npm
+
+    ExecResult:
+      type: object
+      properties:
+        stdout:
+          type: string
+        stderr:
+          type: string
+        exit_code:
+          type: integer
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+  responses:
+    Unauthorized:
+      description: Missing, invalid, or revoked API key
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    InternalError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
