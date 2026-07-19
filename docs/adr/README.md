@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-This folder records the significant technical decisions made while building Cage — what was decided, why, and what alternatives were considered. The goal is that anyone (including future-you) can understand *why* the codebase looks the way it does without having to reverse-engineer it from the code alone.
+This folder records the significant technical decisions made while building Cage — what was decided, why, and what alternatives were considered. The goal is that anyone (including future-me) can understand *why* the codebase looks the way it does without having to reverse-engineer it from the code alone.
 
 ## Index
 
