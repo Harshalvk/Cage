@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -15,6 +16,7 @@ type Config struct {
 	RedisURL       string
 	ReaperInterval time.Duration
 	SandboxTTL     time.Duration
+	WarmPoolSize   int
 }
 
 func LoadConfig() (*Config, error) {
@@ -43,6 +45,12 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("invalid SANDBOX_TTL: %w", err)
 	}
 	cfg.SandboxTTL = sandboxTTL
+
+	warmPoolSize, err := strconv.Atoi(getEnv("WARM_POOL_SIZE", "2"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid WARM_POOL_SIZE: %w", err)
+	}
+	cfg.WarmPoolSize = warmPoolSize
 
 	return cfg, nil
 }
