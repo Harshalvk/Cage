@@ -2,7 +2,7 @@ package pool
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/harshalvk/cage/internal/sandbox"
@@ -79,7 +79,7 @@ func (p *Pool) topUp(ctx context.Context, slug string, cfg TemplateConfig) {
 func (p *Pool) spawnOne(ctx context.Context, slug, image string) {
 	containerID, err := p.sm.CreateSandbox(ctx, image)
 	if err != nil {
-		log.Printf("pool: failed to warm container for template %q: %v", slug, err)
+		slog.Error("pool: failed to warm container for template %q: %v", "template", slug, "error", err)
 		return
 	}
 
@@ -109,7 +109,7 @@ func (p *Pool) Take(ctx context.Context, slug string) (containerID string, ok bo
 		case id := <-ch:
 			running, err := p.sm.IsRunning(ctx, id)
 			if err != nil || !running {
-				log.Printf("pool: discarding dead warm container %s for template %q", id, slug)
+				slog.Info("pool: discarding dead warm container %s for template %q", id, slug)
 				continue // try the next one in the channel, if any
 			}
 			p.triggerRefill(slug)
