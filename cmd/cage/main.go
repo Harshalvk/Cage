@@ -3,16 +3,25 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"errors"
+	"log/slog"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/harshalvk/cage/internal/api"
 	"github.com/harshalvk/cage/internal/cache"
 	"github.com/harshalvk/cage/internal/config"
 	"github.com/harshalvk/cage/internal/db"
+	"github.com/harshalvk/cage/internal/logging"
+	"github.com/harshalvk/cage/internal/pool"
+	"github.com/harshalvk/cage/internal/ratelimit"
 	"github.com/harshalvk/cage/internal/reaper"
 	"github.com/harshalvk/cage/internal/reconcile"
 	"github.com/harshalvk/cage/internal/sandbox"
@@ -20,75 +29,144 @@ import (
 )
 
 func main() {
-	ctx := context.Background()
+	if err := run(); err != nil {
+		slog.Error("fatal startup error", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
+	// Root context, cancelled on SIGTERM/SIGINT — everything downstream
+	// (reaper, pool, in-flight request handling) derives from this.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		log.Fatalf("config error: %v", err)
+		return err // slog not initialized yet, main() logs this with slog anyway since it's still structured
 	}
+
+	logger := logging.New(cfg.LogLevel)
+	slog.SetDefault(logger)
+	logger.Info("starting cage", "port", cfg.Port, "warm_pool_size", cfg.WarmPoolSize)
 
 	if err := db.RunMigrations(cfg.DatabaseURL); err != nil {
-		log.Fatalf("migration error: %v", err)
+		return err
 	}
 
-	store, err := store.NewStore(ctx, cfg.DatabaseURL)
+	st, err := store.NewStore(ctx, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	sm, err := sandbox.NewSandboxManager()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	c, err := cache.New(cfg.RedisURL)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer func() {
 		if err := c.Close(); err != nil {
-			log.Printf("failed to close container: %v", err)
+			slog.Error("failed to close cache client", "error", err)
 		}
 	}()
 
-	if err := reconcile.Reconcile(ctx, sm, store); err != nil {
-		log.Printf("reconcile failed: %v", err)
+	if err := reconcile.Reconcile(ctx, sm, st); err != nil {
+		slog.Error("reconcile failed", "error", err)
 	}
 
-	reaper := reaper.NewReaper(sm, store, 5*time.Second)
-	go reaper.Start(ctx)
+	rp := reaper.NewReaper(sm, st, cfg.ReaperInterval)
+	go rp.Start(ctx)
 
-	api := api.NewAPI(sm, store, cfg.SandboxTTL)
+	templates, err := st.ListTemplate(ctx)
+	if err != nil {
+		return err
+	}
+
+	poolConfigs := make([]pool.TemplateConfig, 0, len(templates))
+	for _, t := range templates {
+		poolConfigs = append(poolConfigs, pool.TemplateConfig{
+			Slug:  t.Slug,
+			Image: t.Image,
+			Size:  cfg.WarmPoolSize,
+		})
+	}
+	warmPool := pool.New(sm, poolConfigs)
+	warmPool.Start(ctx)
+	logger.Info("warm pool ready")
+
+	limiter := ratelimit.NewLimiter(c.RawClient(), 20, 5)
+
+	a := api.NewAPI(sm, st, cfg.SandboxTTL, warmPool)
 
 	r := chi.NewRouter()
-	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.RequestID)
+	r.Use(api.RequestLogger)
+	r.Use(api.MetricsMiddleware)
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
-			log.Printf("failed to encode health response: %v", err)
+			slog.Error("failed to encode health response", "error", err)
 		}
 	})
 
-	r.Get("/templates", api.ListTemplates)
+	r.Get("/templates", a.ListTemplates)
+	r.Handle("/metrics", promhttp.Handler())
 
 	r.Route("/sandboxes", func(r chi.Router) {
-		r.Use(api.AuthMiddleware(store, c))
-		r.Post("/", api.CreateSandbox)
-		r.Get("/", api.ListSandboxes)
-		r.Get("/{id}", api.GetSandbox)
-		r.Delete("/{id}", api.DeleteSandbox)
-		r.Post("/{id}/exec", api.ExecCommand)
-		r.Post("/{id}/files", api.WriteFile)
-		r.Get("/{id}/files", api.ReadFile)
-		r.Post("/{id}/pause", api.PauseSandbox)
-		r.Post("/{id}/resume", api.ResumeSandbox)
+		r.Use(api.AuthMiddleware(st, c))
+		r.Use(api.RateLimitMiddleware(limiter))
+		r.Post("/", a.CreateSandbox)
+		r.Get("/", a.ListSandboxes)
+		r.Get("/{id}", a.GetSandbox)
+		r.Delete("/{id}", a.DeleteSandbox)
+		r.Post("/{id}/exec", a.ExecCommand)
+		r.Post("/{id}/files", a.WriteFile)
+		r.Get("/{id}/files", a.ReadFile)
+		r.Post("/{id}/pause", a.PauseSandbox)
+		r.Post("/{id}/resume", a.ResumeSandbox)
 	})
 
-	log.Println("listening on :8080")
-
-	if err := http.ListenAndServe(":8080", r); err != nil {
-		log.Printf("server failed: %v", err)
-		return
+	srv := &http.Server{
+		Addr:         ":" + cfg.Port,
+		Handler:      r,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 30 * time.Second, // generous — exec/file ops can take a while
+		IdleTimeout:  60 * time.Second,
 	}
+
+	// Run the server in a goroutine so this function can block on ctx.Done() below
+	serveErr := make(chan error, 1)
+	go func() {
+		logger.Info("listening", "addr", srv.Addr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serveErr <- err
+			return
+		}
+		serveErr <- nil
+	}()
+
+	select {
+	case err := <-serveErr:
+		return err // server died on its own (e.g. port already in use)
+	case <-ctx.Done():
+		logger.Info("shutdown signal received, draining connections")
+	}
+
+	// Give in-flight requests up to 15s to finish before forcing shutdown
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		slog.Error("graceful shutdown failed, forcing close", "error", err)
+		return srv.Close()
+	}
+
+	logger.Info("shutdown complete")
+	return nil
 }

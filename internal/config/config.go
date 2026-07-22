@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -15,6 +16,8 @@ type Config struct {
 	RedisURL       string
 	ReaperInterval time.Duration
 	SandboxTTL     time.Duration
+	WarmPoolSize   int
+	LogLevel       string
 }
 
 func LoadConfig() (*Config, error) {
@@ -27,6 +30,7 @@ func LoadConfig() (*Config, error) {
 		DatabaseURL: getEnv("DATABASE_URL", ""),
 		RedisURL:    getEnv("REDIS_URL", "redis://localhost:6379"),
 	}
+	cfg.LogLevel = getEnv("LOG_LEVEL", "info")
 
 	if cfg.DatabaseURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is required")
@@ -43,6 +47,12 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("invalid SANDBOX_TTL: %w", err)
 	}
 	cfg.SandboxTTL = sandboxTTL
+
+	warmPoolSize, err := strconv.Atoi(getEnv("WARM_POOL_SIZE", "2"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid WARM_POOL_SIZE: %w", err)
+	}
+	cfg.WarmPoolSize = warmPoolSize
 
 	return cfg, nil
 }
