@@ -48,3 +48,7 @@ func (c *Cache) Delete(ctx context.Context, key string) error {
 func (c *Cache) Close() error {
 	return c.client.Close()
 }
+
+func (c *Cache) RawClient() *redis.Client {
+	return c.client
+}
