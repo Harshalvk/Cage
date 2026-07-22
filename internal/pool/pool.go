@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/harshalvk/cage/internal/metrics"
 	"github.com/harshalvk/cage/internal/sandbox"
 )
 
@@ -101,6 +102,7 @@ out, discarding any that died unexpectedly
 func (p *Pool) Take(ctx context.Context, slug string) (containerID string, ok bool) {
 	ch, exists := p.warm[slug]
 	if !exists {
+		metrics.PoolMisses.Inc()
 		return "", false
 	}
 
@@ -113,6 +115,7 @@ func (p *Pool) Take(ctx context.Context, slug string) (containerID string, ok bo
 				continue // try the next one in the channel, if any
 			}
 			p.triggerRefill(slug)
+			metrics.PoolHits.Inc()
 			return id, true
 		default:
 			return "", false

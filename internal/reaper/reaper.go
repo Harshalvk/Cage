@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/harshalvk/cage/internal/metrics"
 	"github.com/harshalvk/cage/internal/sandbox"
 	"github.com/harshalvk/cage/internal/store"
 )
@@ -37,6 +38,7 @@ func (r *Reaper) Start(ctx context.Context) {
 
 func (r *Reaper) reap(ctx context.Context) {
 	expired, err := r.store.ListExpired(ctx)
+	metrics.SandboxesReaped.Inc()
 	if err != nil {
 		slog.Error("reaper: failed to list expired sandboxes: %v", "error", err)
 		return
